@@ -2,12 +2,36 @@ use core::fmt::Debug;
 use core::fmt::Display;
 use p3_air::VirtualPairCol;
 use p3_field::Field;
+use std::marker::PhantomData;
+
+use crate::air::VirtualColumn;
+use crate::air::VirtualPairColView;
+
+pub trait LogupInteraction<F: Field> {
+    type VirtualCol: VirtualColumn<F>;
+
+    fn argument_index(&self) -> usize;
+
+    fn kind(&self) -> InteractionKind;
+
+    fn values(&self) -> &[Self::VirtualCol];
+
+    fn multiplicity(&self) -> &Self::VirtualCol;
+}
 
 /// An interaction for a lookup or a permutation argument.
-pub struct Interaction<F: Field> {
-    pub values: Vec<VirtualPairCol<F>>,
-    pub multiplicity: VirtualPairCol<F>,
+pub struct Interaction<F: Field, C = VirtualPairCol<F>> {
+    values: Vec<C>,
+    multiplicity: C,
+    kind: InteractionKind,
+    _marker: PhantomData<F>,
+}
+
+pub struct InteractionView<'a, F, C = VirtualPairColView<'a, F>> {
+    pub values: &'a [C],
+    pub multiplicity: C,
     pub kind: InteractionKind,
+    _marker: PhantomData<F>,
 }
 
 /// The type of interaction for a lookup argument.
@@ -49,23 +73,57 @@ impl InteractionKind {
     }
 }
 
-impl<F: Field> Interaction<F> {
+impl<F: Field, C: VirtualColumn<F>> Interaction<F, C> {
     /// Create a new interaction.
-    pub fn new(
-        values: Vec<VirtualPairCol<F>>,
-        multiplicity: VirtualPairCol<F>,
-        kind: InteractionKind,
-    ) -> Self {
+    pub fn new(values: Vec<C>, multiplicity: C, kind: InteractionKind) -> Self {
         Self {
             values,
             multiplicity,
             kind,
+            _marker: PhantomData,
         }
     }
 
     /// The index of the argument in the lookup table.
     pub fn argument_index(&self) -> usize {
         self.kind as usize
+    }
+}
+
+impl<'a, F: Field, C: VirtualColumn<F>> InteractionView<'a, F, C> {
+    /// Create a new interaction.
+    pub fn new(values: &'a [C], multiplicity: C, kind: InteractionKind) -> Self {
+        Self {
+            values,
+            multiplicity,
+            kind,
+            _marker: PhantomData,
+        }
+    }
+
+    /// The index of the argument in the lookup table.
+    pub fn argument_index(&self) -> usize {
+        self.kind as usize
+    }
+}
+
+impl<F: Field, C: VirtualColumn<F>> LogupInteraction<F> for Interaction<F, C> {
+    type VirtualCol = C;
+
+    fn argument_index(&self) -> usize {
+        self.kind as usize
+    }
+
+    fn values(&self) -> &[C] {
+        &self.values
+    }
+
+    fn multiplicity(&self) -> &C {
+        &self.multiplicity
+    }
+
+    fn kind(&self) -> InteractionKind {
+        self.kind
     }
 }
 
@@ -89,5 +147,25 @@ impl Display for InteractionKind {
             InteractionKind::Range => write!(f, "Range"),
             InteractionKind::Field => write!(f, "Field"),
         }
+    }
+}
+
+impl<'a, F: Field, C: VirtualColumn<F>> LogupInteraction<F> for InteractionView<'a, F, C> {
+    type VirtualCol = C;
+
+    fn argument_index(&self) -> usize {
+        self.kind as usize
+    }
+
+    fn values(&self) -> &[C] {
+        self.values
+    }
+
+    fn multiplicity(&self) -> &C {
+        &self.multiplicity
+    }
+
+    fn kind(&self) -> InteractionKind {
+        self.kind
     }
 }

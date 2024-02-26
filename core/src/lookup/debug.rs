@@ -1,3 +1,4 @@
+use crate::lookup::LogupInteraction;
 use std::collections::BTreeMap;
 
 use p3_baby_bear::BabyBear;
@@ -66,21 +67,22 @@ pub fn debug_interactions<SC: StarkGenericConfig>(
             .chain(chip.receives().iter())
             .enumerate()
         {
-            if !interaction_kinds.contains(&interaction.kind) {
+            if !interaction_kinds.contains(&interaction.kind()) {
                 continue;
             }
             let is_send = m < nb_send_interactions;
-            let multiplicity_eval: SC::Val = interaction.multiplicity.apply(&[], main.row_mut(row));
+            let multiplicity_eval: SC::Val =
+                interaction.multiplicity().apply(&[], main.row_mut(row));
 
             if !multiplicity_eval.is_zero() {
                 let mut values = vec![];
-                for value in &interaction.values {
+                for value in interaction.values() {
                     let expr: SC::Val = value.apply(&[], main.row_mut(row));
                     values.push(expr);
                 }
                 let key = format!(
                     "{} {}",
-                    &interaction.kind.to_string(),
+                    &interaction.kind().to_string(),
                     vec_to_string(values)
                 );
                 key_to_vec_data
@@ -88,7 +90,7 @@ pub fn debug_interactions<SC: StarkGenericConfig>(
                     .or_insert_with(Vec::new)
                     .push(InteractionData {
                         chip_name: chip.name(),
-                        kind: interaction.kind,
+                        kind: interaction.kind(),
                         row,
                         interaction_number: m,
                         is_send,

@@ -159,6 +159,7 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
 
 #[cfg(test)]
 mod tests {
+    use crate::lookup::LogupInteraction;
     use p3_air::{Air, BaseAir, VirtualPairCol};
     use p3_baby_bear::BabyBear;
     use p3_field::{AbstractField, Field};
@@ -244,7 +245,7 @@ mod tests {
 
         for interaction in receives {
             print!("Receive values: ");
-            for value in interaction.values {
+            for value in interaction.values() {
                 let expr = value.apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
                     &[],
                     main.row_mut(0),
@@ -253,7 +254,7 @@ mod tests {
             }
 
             let multiplicity = interaction
-                .multiplicity
+                .multiplicity()
                 .apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
                     &[],
                     main.row_mut(0),
@@ -264,7 +265,7 @@ mod tests {
 
         for interaction in sends {
             print!("Send values: ");
-            for value in interaction.values {
+            for value in interaction.values() {
                 let expr = value.apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
                     &[],
                     main.row_mut(0),
@@ -273,7 +274,7 @@ mod tests {
             }
 
             let multiplicity = interaction
-                .multiplicity
+                .multiplicity()
                 .apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
                     &[],
                     main.row_mut(0),

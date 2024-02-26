@@ -5,6 +5,10 @@ use sp1_core::stark::{RiscvStark, ShardProof, StarkGenericConfig, Verifier};
 
 pub use sp1_core::*;
 
+mod stark;
+
+pub use stark::*;
+
 pub struct RecursiveVerifier<SC: StarkGenericConfig>(PhantomData<SC>);
 
 impl<SC: StarkGenericConfig> RecursiveVerifier<SC> {

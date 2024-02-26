@@ -1,3 +1,4 @@
+use crate::lookup::LogupInteraction;
 use p3_air::{ExtensionBuilder, PairBuilder};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
@@ -115,12 +116,12 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
         }
         // All all sends
         for (j, send) in sends.iter().enumerate() {
-            let mult = send.multiplicity.apply::<F, F>(&[], main_row);
+            let mult = send.multiplicity().apply::<F, F>(&[], main_row);
             phi[i] += EF::from_base(mult) * permutation_row[j];
         }
         // Subtract all receives
         for (j, rec) in receives.iter().enumerate() {
-            let mult = rec.multiplicity.apply::<F, F>(&[], main_row);
+            let mult = rec.multiplicity().apply::<F, F>(&[], main_row);
             phi[i] -= EF::from_base(mult) * permutation_row[nb_sends + j];
         }
         *permutation_row.last_mut().unwrap() = phi[i];
@@ -174,7 +175,7 @@ pub fn eval_permutation_constraints<F, AB>(
     for (m, interaction) in sends.iter().chain(receives.iter()).enumerate() {
         // Ensure that the recipricals of the RLC's were properly calculated.
         let mut rlc = AB::ExprEF::zero();
-        for (field, beta) in interaction.values.iter().zip(betas.clone()) {
+        for (field, beta) in interaction.values().iter().zip(betas.clone()) {
             let elem = field.apply::<AB::Expr, AB::Var>(preprocessed_local, main_local);
             rlc += AB::ExprEF::from_f(beta) * elem;
         }
@@ -182,10 +183,10 @@ pub fn eval_permutation_constraints<F, AB>(
         builder.assert_one_ext(rlc * perm_local[m].into());
 
         let mult_local = interaction
-            .multiplicity
+            .multiplicity()
             .apply::<AB::Expr, AB::Var>(preprocessed_local, main_local);
         let mult_next = interaction
-            .multiplicity
+            .multiplicity()
             .apply::<AB::Expr, AB::Var>(preprocessed_next, main_next);
 
         // Ensure that the running sum is computed correctly.
@@ -224,7 +225,7 @@ pub fn compute_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
     for (i, interaction) in sends.iter().chain(receives.iter()).enumerate() {
         let alpha = alphas[interaction.argument_index()];
         row[i] = alpha;
-        for (columns, beta) in interaction.values.iter().zip(betas.clone()) {
+        for (columns, beta) in interaction.values().iter().zip(betas.clone()) {
             row[i] += beta * columns.apply::<F, F>(preprocessed_row, main_row)
         }
     }
