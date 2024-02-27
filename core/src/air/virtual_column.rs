@@ -9,7 +9,7 @@ use p3_field::{AbstractField, Field};
 /// rows. For example, given a `VirtualColumn` which represents the linear combination
 /// `a * Main[0] + b * Preprocessed[1] + c`, the `apply` method will return the value of `a *
 /// main[0] + b * preprocessed[1] + c`.
-pub trait VirtualColumn<F: Field> {
+pub trait VirtualColumn<F: Field>: Sync {
     /// Evaluate the expression given the preprocessed and main trace rows.
     fn apply<Expr, Var>(&self, preprocessed: &[Var], main: &[Var]) -> Expr
     where

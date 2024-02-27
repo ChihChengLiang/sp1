@@ -1,5 +1,9 @@
-use std::hash::Hash;
+use core::hash::Hash;
 
+use core::marker::PhantomData;
+
+use crate::lookup::InteractionView;
+use crate::lookup::LogupInteraction;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::{ExtensionField, Field, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
@@ -17,35 +21,65 @@ use super::{
 };
 
 /// An Air that encodes lookups based on interactions.
-pub struct Chip<F: Field, A> {
+pub struct Chip<F, A, I = Interaction<F>, S = Vec<I>> {
     /// The underlying AIR of the chip for constraint evaluation.
     air: A,
     /// The interactions that the chip sends.
-    sends: Vec<Interaction<F>>,
+    sends: S,
     /// The interactions that the chip receives.
-    receives: Vec<Interaction<F>>,
+    receives: S,
     /// The relative log degree of the quotient polynomial, i.e. `log2(max_constraint_degree - 1)`.
     log_quotient_degree: usize,
+    _marker: PhantomData<(F, I)>,
 }
 
-impl<F: Field, A> Chip<F, A> {
+/// A Chip variant whose defults generics are selected as a view of the default Chip struct.
+pub type ChipView<'a, F, A, I = InteractionView<'a, F>> = Chip<F, A, I, &'a [I]>;
+
+impl<F: Field, A, I, S> Chip<F, A, I, S>
+where
+    I: LogupInteraction<F = F>,
+    S: AsRef<[I]>,
+{
     /// The send interactions of the chip.
-    pub fn sends(&self) -> &[Interaction<F>] {
-        &self.sends
+    pub fn sends(&self) -> &[I] {
+        self.sends.as_ref()
     }
 
     /// The receive interactions of the chip.
-    pub fn receives(&self) -> &[Interaction<F>] {
-        &self.receives
+    pub fn receives(&self) -> &[I] {
+        self.receives.as_ref()
     }
 
     /// The relative log degree of the quotient polynomial, i.e. `log2(max_constraint_degree - 1)`.
     pub const fn log_quotient_degree(&self) -> usize {
         self.log_quotient_degree
     }
+
+    pub fn generate_permutation_trace<EF: ExtensionField<F>>(
+        &self,
+        preprocessed: &Option<RowMajorMatrix<F>>,
+        main: &RowMajorMatrix<F>,
+        random_elements: &[EF],
+    ) -> RowMajorMatrix<EF>
+    where
+        F: PrimeField,
+    {
+        generate_permutation_trace(
+            self.sends.as_ref(),
+            self.receives.as_ref(),
+            preprocessed,
+            main,
+            random_elements,
+        )
+    }
 }
 
-impl<F: PrimeField32> Chip<F, RiscvAir<F>> {
+impl<F: PrimeField32, I, S> Chip<F, RiscvAir<F>, I, S>
+where
+    I: LogupInteraction<F = F>,
+    S: AsRef<[I]>,
+{
     /// Returns whether the given chip is included in the execution record of the shard.
     pub fn included(&self, shard: &ExecutionRecord) -> bool {
         self.air.included(shard)
@@ -97,36 +131,17 @@ where
             sends,
             receives,
             log_quotient_degree,
+            _marker: PhantomData,
         }
-    }
-
-    pub fn num_interactions(&self) -> usize {
-        self.sends.len() + self.receives.len()
-    }
-
-    pub fn generate_permutation_trace<EF: ExtensionField<F>>(
-        &self,
-        preprocessed: &Option<RowMajorMatrix<F>>,
-        main: &RowMajorMatrix<F>,
-        random_elements: &[EF],
-    ) -> RowMajorMatrix<EF>
-    where
-        F: PrimeField,
-    {
-        generate_permutation_trace(
-            &self.sends,
-            &self.receives,
-            preprocessed,
-            main,
-            random_elements,
-        )
     }
 }
 
-impl<F, A> BaseAir<F> for Chip<F, A>
+impl<F, A, I, S> BaseAir<F> for Chip<F, A, I, S>
 where
     F: Field,
     A: BaseAir<F>,
+    I: LogupInteraction<F = F>,
+    S: AsRef<[I]> + Sync,
 {
     fn width(&self) -> usize {
         self.air.width()
@@ -137,10 +152,12 @@ where
     }
 }
 
-impl<F, A> MachineAir<F> for Chip<F, A>
+impl<F, A, I, S> MachineAir<F> for Chip<F, A, I, S>
 where
     F: Field,
     A: MachineAir<F>,
+    I: LogupInteraction<F = F>,
+    S: AsRef<[I]> + Sync,
 {
     fn name(&self) -> String {
         self.air.name()
@@ -167,36 +184,48 @@ where
 }
 
 // Implement AIR directly on Chip, evaluating both execution and permutation constraints.
-impl<F, A, AB> Air<AB> for Chip<F, A>
+impl<F, A, AB, I, S> Air<AB> for Chip<F, A, I, S>
 where
     F: Field,
     A: Air<AB>,
+    I: LogupInteraction<F = F>,
+    S: AsRef<[I]> + Sync,
     AB: SP1AirBuilder<F = F> + MultiTableAirBuilder + PairBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         // Evaluate the execution trace constraints.
         self.air.eval(builder);
         // Evaluate permutation constraints.
-        eval_permutation_constraints(&self.sends, &self.receives, builder);
+        eval_permutation_constraints(self.sends.as_ref(), self.receives.as_ref(), builder);
     }
 }
 
-impl<F, A> PartialEq for Chip<F, A>
+impl<F, A, I, S> PartialEq for Chip<F, A, I, S>
 where
     F: Field,
     A: PartialEq,
+    I: LogupInteraction<F = F>,
+    S: AsRef<[I]> + Sync,
 {
     fn eq(&self, other: &Self) -> bool {
         self.air == other.air
     }
 }
 
-impl<F: Field, A: Eq> Eq for Chip<F, A> where F: Field + Eq {}
+impl<F: Field, A: Eq, I, S> Eq for Chip<F, A, I, S>
+where
+    F: Field + Eq,
+    I: LogupInteraction<F = F>,
+    S: AsRef<[I]> + Sync,
+{
+}
 
-impl<F, A> Hash for Chip<F, A>
+impl<F, A, I, S> Hash for Chip<F, A, I, S>
 where
     F: Field,
     A: Hash,
+    I: LogupInteraction<F = F>,
+    S: AsRef<[I]> + Sync,
 {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.air.hash(state);

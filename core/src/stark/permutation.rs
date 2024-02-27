@@ -1,24 +1,21 @@
 use crate::air::VirtualColumn;
 use crate::lookup::LogupInteraction;
 use p3_air::{ExtensionBuilder, PairBuilder};
-use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
+use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 use p3_maybe_rayon::prelude::*;
 
 use super::util::batch_multiplicative_inverse_inplace;
-use crate::{air::MultiTableAirBuilder, lookup::Interaction};
+use crate::air::MultiTableAirBuilder;
 
 /// Generates powers of a random element based on how many interactions there are in the chip.
 ///
 /// These elements are used to uniquely fingerprint each interaction.
-pub fn generate_interaction_rlc_elements<F: Field, EF: AbstractExtensionField<F>, I>(
+pub fn generate_interaction_rlc_elements<I: LogupInteraction, EF: AbstractExtensionField<I::F>>(
     sends: &[I],
     receives: &[I],
     random_element: EF,
-) -> Vec<EF>
-where
-    I: LogupInteraction<F>,
-{
+) -> Vec<EF> {
     let n = sends
         .iter()
         .chain(receives.iter())
@@ -33,13 +30,18 @@ where
 ///
 /// The permutation trace has (N+1)*EF::NUM_COLS columns, where N is the number of interactions in
 /// the chip.
-pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
-    sends: &[Interaction<F>],
-    receives: &[Interaction<F>],
-    preprocessed: &Option<RowMajorMatrix<F>>,
-    main: &RowMajorMatrix<F>,
+pub(crate) fn generate_permutation_trace<I, EF>(
+    sends: &[I],
+    receives: &[I],
+    preprocessed: &Option<RowMajorMatrix<I::F>>,
+    main: &RowMajorMatrix<I::F>,
     random_elements: &[EF],
-) -> RowMajorMatrix<EF> {
+) -> RowMajorMatrix<EF>
+where
+    I: LogupInteraction + Sync,
+    I::F: PrimeField,
+    EF: ExtensionField<I::F>,
+{
     // Generate the RLC elements to uniquely identify each interaction.
     let alphas = generate_interaction_rlc_elements(sends, receives, random_elements[0]);
 
@@ -120,12 +122,12 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
         }
         // All all sends
         for (j, send) in sends.iter().enumerate() {
-            let mult = send.multiplicity().apply::<F, F>(&[], main_row);
+            let mult = send.multiplicity().apply::<I::F, I::F>(&[], main_row);
             phi[i] += EF::from_base(mult) * permutation_row[j];
         }
         // Subtract all receives
         for (j, rec) in receives.iter().enumerate() {
-            let mult = rec.multiplicity().apply::<F, F>(&[], main_row);
+            let mult = rec.multiplicity().apply::<I::F, I::F>(&[], main_row);
             phi[i] -= EF::from_base(mult) * permutation_row[nb_sends + j];
         }
         *permutation_row.last_mut().unwrap() = phi[i];
@@ -142,7 +144,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
 ///     - The running sum column ends at the (currently) given cumalitive sum.
 pub fn eval_permutation_constraints<AB, I>(sends: &[I], receives: &[I], builder: &mut AB)
 where
-    I: LogupInteraction<AB::F>,
+    I: LogupInteraction<F = AB::F>,
     AB: MultiTableAirBuilder + PairBuilder,
 {
     let random_elements = builder.permutation_randomness();
@@ -212,21 +214,25 @@ where
 }
 
 /// Computes the permutation fingerprint of a row.
-pub fn compute_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
-    main_row: &[F],
-    preprocessed_row: &[F],
-    sends: &[Interaction<F>],
-    receives: &[Interaction<F>],
+pub fn compute_permutation_row<I, EF>(
+    main_row: &[I::F],
+    preprocessed_row: &[I::F],
+    sends: &[I],
+    receives: &[I],
     alphas: &[EF],
     betas: Powers<EF>,
-) -> Vec<EF> {
+) -> Vec<EF>
+where
+    I: LogupInteraction,
+    EF: ExtensionField<I::F>,
+{
     let width = sends.len() + receives.len() + 1;
     let mut row = vec![EF::zero(); width];
     for (i, interaction) in sends.iter().chain(receives.iter()).enumerate() {
         let alpha = alphas[interaction.argument_index()];
         row[i] = alpha;
         for (columns, beta) in interaction.values().iter().zip(betas.clone()) {
-            row[i] += beta * columns.apply::<F, F>(preprocessed_row, main_row)
+            row[i] += beta * columns.apply::<I::F, I::F>(preprocessed_row, main_row)
         }
     }
     row

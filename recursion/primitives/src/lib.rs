@@ -1,13 +1,9 @@
 use core::marker::PhantomData;
 
 use sp1_core::air::MachineAir;
-use sp1_core::stark::{RiscvStark, ShardProof, StarkGenericConfig, Verifier};
+use stark::{RiscvStark, ShardProof, StarkGenericConfig, Verifier};
 
 pub use sp1_core::*;
-
-mod stark;
-
-pub use stark::*;
 
 pub struct RecursiveVerifier<SC: StarkGenericConfig>(PhantomData<SC>);
 

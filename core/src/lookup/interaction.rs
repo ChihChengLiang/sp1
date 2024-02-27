@@ -7,8 +7,9 @@ use std::marker::PhantomData;
 use crate::air::VirtualColumn;
 use crate::air::VirtualPairColView;
 
-pub trait LogupInteraction<F: Field> {
-    type VirtualCol: VirtualColumn<F>;
+pub trait LogupInteraction: Sync {
+    type F: Field;
+    type VirtualCol: VirtualColumn<Self::F>;
 
     fn argument_index(&self) -> usize;
 
@@ -107,7 +108,8 @@ impl<'a, F: Field, C: VirtualColumn<F>> InteractionView<'a, F, C> {
     }
 }
 
-impl<F: Field, C: VirtualColumn<F>> LogupInteraction<F> for Interaction<F, C> {
+impl<F: Field, C: VirtualColumn<F>> LogupInteraction for Interaction<F, C> {
+    type F = F;
     type VirtualCol = C;
 
     fn argument_index(&self) -> usize {
@@ -150,7 +152,8 @@ impl Display for InteractionKind {
     }
 }
 
-impl<'a, F: Field, C: VirtualColumn<F>> LogupInteraction<F> for InteractionView<'a, F, C> {
+impl<'a, F: Field, C: VirtualColumn<F>> LogupInteraction for InteractionView<'a, F, C> {
+    type F = F;
     type VirtualCol = C;
 
     fn argument_index(&self) -> usize {
