@@ -1,3 +1,4 @@
+use crate::air::VirtualColumn;
 use crate::lookup::LogupInteraction;
 use p3_air::{ExtensionBuilder, PairBuilder};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
@@ -10,11 +11,14 @@ use crate::{air::MultiTableAirBuilder, lookup::Interaction};
 /// Generates powers of a random element based on how many interactions there are in the chip.
 ///
 /// These elements are used to uniquely fingerprint each interaction.
-pub fn generate_interaction_rlc_elements<F: Field, EF: AbstractExtensionField<F>>(
-    sends: &[Interaction<F>],
-    receives: &[Interaction<F>],
+pub fn generate_interaction_rlc_elements<F: Field, EF: AbstractExtensionField<F>, I>(
+    sends: &[I],
+    receives: &[I],
     random_element: EF,
-) -> Vec<EF> {
+) -> Vec<EF>
+where
+    I: LogupInteraction<F>,
+{
     let n = sends
         .iter()
         .chain(receives.iter())
@@ -136,14 +140,10 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
 ///     - The running sum column starts at zero.
 ///     - That the RLC per interaction is computed correctly.
 ///     - The running sum column ends at the (currently) given cumalitive sum.
-pub fn eval_permutation_constraints<F, AB>(
-    sends: &[Interaction<F>],
-    receives: &[Interaction<F>],
-    builder: &mut AB,
-) where
-    F: Field,
-    AB::EF: ExtensionField<F>,
-    AB: MultiTableAirBuilder<F = F> + PairBuilder,
+pub fn eval_permutation_constraints<AB, I>(sends: &[I], receives: &[I], builder: &mut AB)
+where
+    I: LogupInteraction<AB::F>,
+    AB: MultiTableAirBuilder + PairBuilder,
 {
     let random_elements = builder.permutation_randomness();
     let (alpha, beta) = (random_elements[0], random_elements[1]);
