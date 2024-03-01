@@ -75,6 +75,14 @@ impl SP1Prover {
         tracing::info_span!("runtime.run(...)").in_scope(|| {
             runtime.run();
         });
+        // BabyBear info:
+        //! Support for the finite field of order `15 * 2^27 + 1`, and its degree 4
+        //! extension field. This field choice allows for 32-bit addition without
+        //! overflow.
+        /// This specific prime P was chosen to:
+        /// - Be less than 2^31 so that it fits within a 32 bit word and doesn't
+        ///   overflow on addition.
+        /// - Otherwise have as large a power of 2 in the factors of P-1 as possible.
         let config = BabyBearBlake3::new();
         let stdout = SP1Stdout::from(&runtime.state.output_stream);
         let proof = prove_core(config, runtime);
@@ -123,6 +131,7 @@ impl SP1Verifier {
     ) -> Result<(), ProgramVerificationError> {
         let config = BabyBearBlake3::new();
         let mut challenger = config.challenger();
+        //RISCV Stark!
         let machine = RiscvStark::new(config);
         let (_, vk) = machine.setup(&Program::from(elf));
         machine.verify(&vk, &proof.proof, &mut challenger)

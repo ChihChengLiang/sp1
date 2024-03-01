@@ -20,6 +20,7 @@ impl<AB> Air<AB> for CpuChip
 where
     AB: SP1AirBuilder,
 {
+    // Main entrypoint of the circuit
     #[inline(never)]
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();

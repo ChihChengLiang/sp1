@@ -122,10 +122,12 @@ where
             local.is_real,
         );
 
+        // 你好
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
             local.b[0] * local.b[0] * local.c[0] - local.b[0] * local.b[0] * local.c[0],
         );
+        // b^2 * c -  b^2 * c ?
     }
 }
 

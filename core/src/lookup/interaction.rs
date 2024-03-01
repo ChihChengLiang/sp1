@@ -36,6 +36,7 @@ pub enum InteractionKind {
 }
 
 impl InteractionKind {
+    // They seem to use lookups for most things as Ming was saying
     pub fn all_kinds() -> Vec<InteractionKind> {
         vec![
             InteractionKind::Memory,
